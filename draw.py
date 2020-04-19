@@ -1,9 +1,55 @@
 from display import *
 from matrix import *
 from gmath import *
+import random
+import math
 
-def scanline_convert(polygons, i, screen, zbuffer ):
-    pass
+def draw_scanline(x0, z0, x1, z1, y, screen, zbuffer, color):
+    #swap points if going right -> left
+    if x0 > x1:
+        x0, x1, z0, z1 = x1, x0, z1, z0
+    dz = (z1 - z0) / (x1 - x0 + 1) if (x1 - x0 + 1) != 0 else 0
+    while x0 <= x1:
+        plot(screen, zbuffer, color, x0, y, z0)
+        x0+=1
+        z0 += dz
+
+def scanline_convert(polygons, i, screen, zbuffer, color):
+    points = sorted(polygons[i:i+3], key = lambda x: x[1])
+    top = points[2]
+    middle = points[1]
+    bottom = points[0]
+    color = [random.randrange(255), random.randrange(255), random.randrange(255)]
+    #initial values
+    x0 = bottom[0]
+    z0 = bottom[2]
+    x1 = bottom[0]
+    z1 = bottom[2]
+    y = bottom[1]
+    #calculating delta values
+    d0 = int(top[1]) - int(y) + 1
+    d1 = int(middle[1]) - int(y) + 1
+    d2 = int(top[1]) - int(middle[1]) + 1
+    dx0 = (top[0] - bottom[0]) / d0 if d0 != 0 else 0
+    dz0 = (top[2] - bottom[2]) / d0 if d0 != 0 else 0
+    dx1 = (middle[0] - bottom[0]) / d1 if d1 != 0 else 0
+    dx1_1 = (top[0] - middle[0]) / d2 if d2 != 0 else 0
+    dz1 = (middle[2] - bottom[2]) / d1 if d1 != 0 else 0
+    dz1_1 = (top[2] - middle[2]) / d2 if d2 != 0 else 0
+    swapped = False
+    while int(y) <= int(top[1]):
+        if (not swapped and int(y) >= int(middle[1])):
+            x1 = middle[0]
+            z1 = middle[2]
+            dx1 = dx1_1
+            dz1 = dz1_1
+            swapped = True
+        draw_scanline(int(x0), z0, int(x1), z1, int(y), screen, zbuffer, color)
+        x0+= dx0
+        z0+= dz0
+        x1+= dx1
+        z1+= dz1
+        y+= 1
 
 def add_polygon( polygons, x0, y0, z0, x1, y1, z1, x2, y2, z2 ):
     add_point(polygons, x0, y0, z0)
@@ -21,27 +67,7 @@ def draw_polygons( polygons, screen, zbuffer, color ):
         normal = calculate_normal(polygons, point)[:]
         #print normal
         if normal[2] > 0:
-            draw_line( int(polygons[point][0]),
-                       int(polygons[point][1]),
-                       polygons[point][2],
-                       int(polygons[point+1][0]),
-                       int(polygons[point+1][1]),
-                       polygons[point+1][2],
-                       screen, zbuffer, color)
-            draw_line( int(polygons[point+2][0]),
-                       int(polygons[point+2][1]),
-                       polygons[point+2][2],
-                       int(polygons[point+1][0]),
-                       int(polygons[point+1][1]),
-                       polygons[point+1][2],
-                       screen, zbuffer, color)
-            draw_line( int(polygons[point][0]),
-                       int(polygons[point][1]),
-                       polygons[point][2],
-                       int(polygons[point+2][0]),
-                       int(polygons[point+2][1]),
-                       polygons[point+2][2],
-                       screen, zbuffer, color)
+            scanline_convert(polygons, point, screen, zbuffer, color)
         point+= 3
 
 
@@ -253,7 +279,6 @@ def add_point( matrix, x, y, z=0 ):
 
 
 def draw_line( x0, y0, z0, x1, y1, z1, screen, zbuffer, color ):
-
     #swap points if going right -> left
     if x0 > x1:
         xt = x0
@@ -262,9 +287,10 @@ def draw_line( x0, y0, z0, x1, y1, z1, screen, zbuffer, color ):
         y0 = y1
         x1 = xt
         y1 = yt
-
+    x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
     x = x0
     y = y0
+    z = z0
     A = 2 * (y1 - y0)
     B = -2 * (x1 - x0)
     wide = False
@@ -304,7 +330,7 @@ def draw_line( x0, y0, z0, x1, y1, z1, screen, zbuffer, color ):
             d_east = -1 * B
             loop_start = y1
             loop_end = y
-
+    dz = (z1 - z0) / distance if distance != 0 else 0
     while ( loop_start < loop_end ):
         plot( screen, zbuffer, color, x, y, 0 )
         if ( (wide and ((A > 0 and d > 0) or (A < 0 and d < 0))) or
@@ -317,5 +343,6 @@ def draw_line( x0, y0, z0, x1, y1, z1, screen, zbuffer, color ):
             x+= dx_east
             y+= dy_east
             d+= d_east
+        z+=dz
         loop_start+= 1
-    plot( screen, zbuffer, color, x, y, 0 )
+    plot( screen, zbuffer, color, x, y, z )
